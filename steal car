@@ -1,0 +1,135 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- Function to get character and HumanoidRootPart
+local function getCharacterAndRootPart()
+	local character = player.Character or player.CharacterAdded:Wait()
+	local rootPart = character:WaitForChild("HumanoidRootPart")
+	return character, rootPart
+end
+
+-- Function to bring the closest empty car to the player and seat them in it
+local function bringClosestEmptyCarToPlayer()
+	local character, rootPart = getCharacterAndRootPart()
+	local civCars = workspace:FindFirstChild("CivCars")
+	if not civCars then
+		warn("CivCars folder not found!")
+		return
+	end
+
+	local closestCar = nil
+	local shortestDistance = math.huge
+	local playerPosition = rootPart.Position
+
+	-- Find the closest unoccupied car
+	for _, car in ipairs(civCars:GetChildren()) do
+		if car:IsA("Model") and car:FindFirstChild("DriveSeat") then
+			local driveSeat = car:FindFirstChild("DriveSeat")
+			if driveSeat:IsA("VehicleSeat") and driveSeat.Occupant == nil then
+				local distance = (driveSeat.Position - playerPosition).Magnitude
+				if distance < shortestDistance then
+					shortestDistance = distance
+					closestCar = car
+				end
+			end
+		end
+	end
+
+	if not closestCar then
+		if Library and Library.Notify then
+			Library:Notify("❌ Could not find any empty car nearby!", 5)
+		else
+			game.StarterGui:SetCore("SendNotification", {
+				Title = "No Car Found",
+				Text = "❌ Could not find any empty car nearby!",
+				Duration = 5
+			})
+		end
+		return
+	end
+
+	-- Make sure the car has a PrimaryPart
+	if not closestCar.PrimaryPart then
+		closestCar.PrimaryPart = closestCar:FindFirstChild("PrimaryPart") or closestCar:FindFirstChildWhichIsA("BasePart")
+		if not closestCar.PrimaryPart then
+			warn("Car has no PrimaryPart!")
+			return
+		end
+	end
+
+	-- Raycast to find the ground level where the player is
+	local rayOrigin = rootPart.Position + Vector3.new(0, 5, 0)
+	local rayDirection = Vector3.new(0, -50, 0)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = {character, closestCar}
+	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+	local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+	local groundY = rootPart.Position.Y
+	if rayResult then
+		groundY = rayResult.Position.Y
+	end
+
+	-- Position the car a bit in front of the player on the ground
+	local carSize = closestCar:GetExtentsSize()
+	local forward = rootPart.CFrame.LookVector
+	local targetPos = rootPart.Position + forward * (carSize.Z / 2 + 3)
+	targetPos = Vector3.new(targetPos.X, groundY + carSize.Y / 2 + 0.1, targetPos.Z)
+
+	local targetCFrame = CFrame.new(targetPos, targetPos + forward)
+
+	-- Move car
+	closestCar:PivotTo(targetCFrame)
+
+	-- 🔒 Freeze all parts to forcefully hold the new position
+	for _, part in ipairs(closestCar:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+		end
+	end
+
+	task.wait(0.2)
+
+	for _, part in ipairs(closestCar:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.Anchored = false
+		end
+	end
+
+	-- ✅ Optional: update last position value if it exists
+	local posValue = closestCar:FindFirstChild("Position") or closestCar:FindFirstChild("LastLocation") or closestCar:FindFirstChild("SpawnPoint")
+	if posValue and posValue:IsA("Vector3Value") then
+		posValue.Value = targetPos
+	end
+
+	-- Seat the player in the car after a short delay
+	task.wait(0.2)
+	local driveSeat = closestCar:FindFirstChild("DriveSeat")
+	if driveSeat and driveSeat:IsA("VehicleSeat") then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			task.wait(0.1)
+			driveSeat:Sit(humanoid)
+		end
+	end
+
+	-- Custom notification using Library:Notify
+	local carName = closestCar.Name or "Unknown Car"
+	if Library and Library.Notify then
+		Library:Notify("✅ Brought car: " .. carName .. " to you and entered!", 5)
+	else
+		game.StarterGui:SetCore("SendNotification", {
+			Title = "Car Summoned",
+			Text = "✅ Nearest car (" .. carName .. ") brought to you and entered!",
+			Duration = 5
+		})
+	end
+end
+
+-- Update character on respawn
+player.CharacterAdded:Connect(function()
+	getCharacterAndRootPart()
+end)
+
+-- 🚗 Automatically bring the car when the script runs
+bringClosestEmptyCarToPlayer()
