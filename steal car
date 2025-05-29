@@ -38,12 +38,6 @@ local function bringClosestEmptyCarToPlayer()
 	if not closestCar then
 		if Library and Library.Notify then
 			Library:Notify("❌ Could not find any empty car nearby!", 5)
-		else
-			game.StarterGui:SetCore("SendNotification", {
-				Title = "No Car Found",
-				Text = "❌ Could not find any empty car nearby!",
-				Duration = 5
-			})
 		end
 		return
 	end
@@ -113,16 +107,10 @@ local function bringClosestEmptyCarToPlayer()
 		end
 	end
 
-	-- Custom notification using Library:Notify
+	-- ONLY use Library:Notify
 	local carName = closestCar.Name or "Unknown Car"
 	if Library and Library.Notify then
 		Library:Notify("✅ Brought car: " .. carName .. " to you and entered!", 5)
-	else
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "Car Summoned",
-			Text = "✅ Nearest car (" .. carName .. ") brought to you and entered!",
-			Duration = 5
-		})
 	end
 end
 
